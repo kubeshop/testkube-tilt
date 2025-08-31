@@ -1,0 +1,13 @@
+kind: TestWorkflow
+apiVersion: testworkflows.testkube.io/v1
+metadata:
+  name: e2e
+  namespace: testkube
+spec:
+  steps:
+  - shell: echo $PATH
+status:
+  health:
+    passRate: 1
+    flipRate: 0
+    overallHealth: 1

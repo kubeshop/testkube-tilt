@@ -1,0 +1,36 @@
+# option 1 – shared storage within testkube? :)
+
+# option 2
+# tilt mount
+
+HOST_SERVICES = str(local("pwd", quiet=True)).strip() + "/services"  # absolute path
+MNT_SERVICES  = "/minikube-host/services"                            # path inside the minikube node
+
+local_resource(
+  "minikube-mount-services",
+  serve_cmd='minikube mount -p tk-local "%s:%s"' % (HOST_SERVICES, MNT_SERVICES),
+  allow_parallel=True,
+)
+
+# add as dep to auto-preflight:
+
+resource_deps=['preflight', 'minikube-mount-services']
+
+# yml spec to access within workflow?
+
+spec:
+  podTemplate:
+    spec:
+      volumes:
+        - name: host-services
+          hostPath:
+            path: /minikube-host/services       # <— path frmo minikube
+            type: Directory
+  steps:
+    - name: run-xyz
+      image: xyz/yyy:1.1.1
+      workingDir: /workspace
+      volumeMounts:
+        - name: host-services
+          mountPath: /workspace/services        # <— relative in the container
+      command: ["bash","-lc"]

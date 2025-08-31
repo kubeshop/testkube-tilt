@@ -1,0 +1,13 @@
+kind: TestWorkflow
+apiVersion: testworkflows.testkube.io/v1
+metadata:
+  name: example-1
+  namespace: testkube
+spec:
+  steps:
+  - shell: echo $CWD
+status:
+  health:
+    passRate: 1
+    flipRate: 0
+    overallHealth: 1

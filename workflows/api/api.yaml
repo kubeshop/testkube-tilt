@@ -1,0 +1,21 @@
+apiVersion: testworkflows.testkube.io/v1
+kind: TestWorkflow
+metadata:
+  name: api-vite-test2
+spec:
+  content:
+    git:
+      uri: https://github.com/fivenp/testkube-oneline
+      revision: main
+      paths:
+        - services/api
+  container:
+    image: node:20-alpine
+  steps:
+    - name: install
+      run:
+        shell: cd /data/repo/services/api && npm install
+    - name: test
+      run:
+        shell: cd /data/repo/services/api && npm run test
+          # npx vitest run --reporter=junit --outputFile ./reports/junit.xml || true

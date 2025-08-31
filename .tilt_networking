@@ -1,0 +1,13 @@
+# comm. from container to host gateway
+
+GW_IP=$(minikube ssh -p tk-local -- "ip route | awk '/default/ {print \$3; exit}'" | tr -d '\r')
+echo "$GW_IP"
+
+# set as ENV var on the workflow and access the local app
+
+HOST_URL=$GW_IP
+npm run e2e
+
+# OR
+#
+# hostNetwork: true

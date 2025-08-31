@@ -1,0 +1,8 @@
+# ignore noise so Tilt doesn’t retrigger on junk
+.DS_Store
+.git/
+**/__pycache__/
+**/*.log
+node_modules/
+dist/
+build/
