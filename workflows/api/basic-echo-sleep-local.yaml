@@ -1,0 +1,81 @@
+kind: TestWorkflow
+apiVersion: testworkflows.testkube.io/v1
+metadata:
+  name: basic-echo-sleep-local
+  namespace: testkube
+  labels:
+    health: icon
+    se-demo: sandbox
+spec:
+  execution:
+    target:
+      match:
+        name:
+          - testkube
+  pod:
+    volumes:
+      - name: devcode
+        persistentVolumeClaim:
+          claimName: tilt-dev-pvc
+  config:
+    sleepyTime:
+      type: integer
+      default: 5
+  container:
+    workingDir: /data/repo
+    image: bash:devel-alpine3.22
+  execution:
+    tags:
+      test: sleeping
+  steps:
+  - name: Sleeping...
+    run:
+      image: bash:devel-alpine3.22
+      volumeMounts:
+        - name: devcode
+          mountPath: /data/repo
+      args:
+      - bash
+      - -euo
+      - pipefail
+      - -c
+      - |
+        TOTAL={{config.sleepyTime}}
+        if (( TOTAL <= 180 )); then
+          INTERVAL=10
+        else
+          INTERVAL=30
+        fi
+
+        REMAIN=$TOTAL
+        while (( REMAIN > 0 )); do
+          echo "Sleeping for $REMAIN more seconds..."
+          if (( REMAIN > INTERVAL )); then
+            sleep "$INTERVAL"
+            REMAIN=$(( REMAIN - INTERVAL ))
+          else
+            sleep "$REMAIN"
+            REMAIN=0
+          fi
+        done
+        echo "Done sleeping for $TOTAL seconds."
+        echo "This is new line"
+        cat services/api/sync_probe.txt
+  - name: Waking up...
+    shell: |-
+      cat <<'SUN'
+              .     :     .
+            .  :    |    :  .
+             .  |   |   |  ,
+              \  |     |  /
+          .     ,-'"""`-.     .
+            "- /  __ __  \ -"
+              |==|  I  |==|
+        - --- | _`--^--'_ | --- -
+              |'`.     ,'`|
+            _- \  "---"  / -_
+          .     `-.___,-'     .
+              /  |     |  \
+            .'  |   |   |  `.
+               :    |    :
+              .     :     .

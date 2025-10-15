@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tilt-syncer
+  namespace: testkube
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tilt-syncer }
+  template:
+    metadata:
+      labels: { app: tilt-syncer }
+    spec:
+      containers:
+        - name: syncer
+          image: tilt-syncer:dev     # <-- Tilt will build this
+          command: ["sh","-lc","sleep infinity"]
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: devcode
+              mountPath: /data/repo
+      volumes:
+        - name: devcode
+          persistentVolumeClaim:
+            claimName: tilt-dev-pvc

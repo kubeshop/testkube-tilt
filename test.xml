@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="tR Report" tests="3" time="14">
+  <testsuite name="basic-poc" failures="1" tests="3" time="14" id="0">
+    <testcase name="Verify the page loads" status="failure" time="9" classname="com.testrigor">
+      <failure message="Could not perform action due to missing elements" type="failure"/>
+      <properties>
+        <properties name="testCaseUuid" value="41ab446c-4b15-495a-a7d7-7ab1ae674562"/>
+      </properties>
+    </testcase>
+    <testcase name="Bruno Test" status="success" time="1" classname="com.testrigor">
+      <properties>
+        <properties name="testCaseUuid" value="61313f2e-7676-47ff-be7c-94333d447788"/>
+      </properties>
+    </testcase>
+    <testcase name="Test from community library" status="success" time="4" classname="com.testrigor">
+      <properties>
+        <properties name="testCaseUuid" value="724e64d6-701c-4513-a03c-6a7178cb7d16"/>
+      </properties>
+    </testcase>
+    <properties>
+      <properties name="testSuiteId" value="KWjqGeQSwB9kJcz2Z"/>
+      <properties name="taskId" value="MBxXt3FJggi4wGjxW"/>
+      <properties name="siteUrl" value="https://testkube.io/"/>
+    </properties>
+  </testsuite>
+</testsuites>

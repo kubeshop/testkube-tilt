@@ -38,6 +38,33 @@ def sanitize_id(s):
 def res_id(prefix, service, wf_path):
     return '%s:%s:%s' % (prefix, service, sanitize_id(wf_path))
 
+# =========================
+# Wiring to PVC...?
+# =========================
+
+docker_build(
+  'tilt-syncer:dev',
+  '.',
+  dockerfile='Dockerfile.tilt-syncer',
+  live_update=[
+    sync('services/api', '/data/repo/services/api'),
+  ],
+)
+
+# --- Create the PVC once (idempotent) ---------------------------------------
+cmd_pvc = """
+bash -lc 'set -euo pipefail;
+kubectl -n %s get pvc tilt-dev-pvc >/dev/null 2>&1 || kubectl apply -f k8s/pvc.yaml'
+""" % NS
+
+local_resource(
+    'pvc-tilt-dev',
+    cmd_pvc,
+    trigger_mode=TRIGGER_MODE_AUTO,
+)
+
+k8s_yaml('k8s/syncer.yaml')
+k8s_resource('tilt-syncer', port_forwards=[], resource_deps=['pvc-tilt-dev'])
 
 # =========================
 # Wire workflows

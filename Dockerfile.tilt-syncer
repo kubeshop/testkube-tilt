@@ -1,0 +1,5 @@
+FROM alpine:3.20
+# Create the subtree we’ll sync into
+RUN mkdir -p /data/repo/services/api && chmod -R 777 /data/repo
+WORKDIR /data/repo
+CMD ["sh","-lc","sleep infinity"]

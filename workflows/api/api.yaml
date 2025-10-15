@@ -19,3 +19,4 @@ spec:
       run:
         shell: cd /data/repo/services/api && npm run test
           # npx vitest run --reporter=junit --outputFile ./reports/junit.xml || true
+          
