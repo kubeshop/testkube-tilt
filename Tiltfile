@@ -1,15 +1,16 @@
 # =========================
 # Config
 # =========================
-AGENT_NAMESPACE = 'testkube'                        # namespace where Testkube Runner Agent runs
-KUBE_CONTEXT_REQUIRED = 'minikube'     # your local minikubek8s context
-AUTO_RUN = False                        # False -> manual run buttons only
-WORKFLOW_DIR = 'workflows'             # where workflow yamls live
-SERVICE_ROOT = 'services'              # code folders that should trigger runs
-RUNNER_AGENT_NAME = 'minikube-runner-1'              # name of the local runner agent to use, will be discovered automatically if not set
-RUN_SILENTLY = True                    # if True, the workflow will run silently (no webhooks will be sent)
-EXECUTION_TAGS = 'local-dev=true'   # tags to apply to the workflow execution
+AGENT_NAMESPACE = 'minikube-runner-1'   # namespace where local Testkube Runner Agent runs
+KUBE_CONTEXT_REQUIRED = 'minikube'      # your local minikubek8s context
+AUTO_RUN = True                        # False -> manual run buttons only
+WORKFLOW_DIR = 'workflows'              # where workflow yamls live
+SERVICE_ROOT = 'services'               # code folders that should trigger runs
+RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent to use when targeting
+RUN_SILENTLY = True                     # True -> the workflow will run silently (no webhooks will be sent)
+EXECUTION_TAGS = 'local-dev=true'       # tags to apply to triggered workflow executions
 
+# extract host network address from minikube ssh so we can use it to target the host network when running workflows
 HOST_NETWORK_ADDRESS = str(local(
     'bash -lc "minikube ssh -- grep host.docker.internal /etc/hosts 2>/dev/null | awk \'{print $1}\' || echo host.minikube.internal"',
     quiet=True
@@ -17,6 +18,7 @@ HOST_NETWORK_ADDRESS = str(local(
 
 print("Host network address: %s" % HOST_NETWORK_ADDRESS)
 
+# make sure we're using the correct k8s context
 allow_k8s_contexts(KUBE_CONTEXT_REQUIRED)
 
 # =========================
@@ -97,7 +99,7 @@ else:
         local_resource(
             apply_name,
             'bash -lc "set -euo pipefail; testkube create testworkflow --update -f %s"' % wf,
-            deps=[wf, service_dir],
+            deps=[wf],
             allow_parallel=True,
             labels=['update'],
         )
@@ -106,8 +108,8 @@ else:
         run_cmd = """
         bash -lc 'set -euo pipefail;
 echo "Running workflow %s on local runner: %s"
-testkube run testworkflow "%s" -n %s --target name=%s -f %s --tag %s
-'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, AGENT_NAMESPACE, RUNNER_AGENT_NAME, (RUN_SILENTLY and '--disable-webhooks' or ''), EXECUTION_TAGS)
+testkube run testworkflow "%s" --target name=%s -f --tag %s --variable HOST_NAME=%s %s
+'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, RUNNER_AGENT_NAME, EXECUTION_TAGS, HOST_NETWORK_ADDRESS, (RUN_SILENTLY and '--disable-webhooks' or ''))
 
         run_name = res_id('Run Workflow %s' % workflow_name, service, wf)
         local_resource(
@@ -115,6 +117,7 @@ testkube run testworkflow "%s" -n %s --target name=%s -f %s --tag %s
             run_cmd,
             trigger_mode=TRIGGER_MODE_AUTO if AUTO_RUN else TRIGGER_MODE_MANUAL,
             resource_deps=[apply_name],
+            deps=[service_dir],
             allow_parallel=True,
             labels=['execute'],
         )
@@ -126,21 +129,21 @@ local_resource(
     'Minikube Status',
     'bash -lc "kubectl get nodes -o wide && kubectl -n %s get pods -o wide"' % AGENT_NAMESPACE,
     trigger_mode=TRIGGER_MODE_MANUAL,
-    labels=['minikube'],
+    labels=['admin'],
 )
 
 local_resource(
     'Testkube Status',
     'bash -lc "testkube status"',
     trigger_mode=TRIGGER_MODE_MANUAL,
-    labels=['testkube'],
+    labels=['admin'],
 )
 
 local_resource(
     'Testkube Dashboard',
     'bash -lc "testkube dashboard -n %s"' % AGENT_NAMESPACE,
     trigger_mode=TRIGGER_MODE_MANUAL,
-    labels=['testkube'],
+    labels=['admin'],
     links=[link(
     'https://docs.testkube.io',
     'Testkube Docs',
@@ -148,15 +151,15 @@ local_resource(
 )
 
 local_resource(
-    'Mount tests into Minikube',
+    'Mount local test folder into Minikube',
     serve_cmd='bash -lc "minikube mount ./:/minikube-host/testkube-local-dev"',
     trigger_mode=TRIGGER_MODE_MANUAL,
-    labels=['minikube'],
+    labels=['admin'],
 )
 
-# =========================
+# ==================================================
 # Create TestWorkflowTemplate for local dev override
-# =========================
+# ==================================================
 
 # Example helper function
 def create_local_dev_override_workflow_template(resource_yaml):
@@ -177,7 +180,7 @@ rm -f "$TMPFILE"
         "Create Local Dev Override WorkflowTemplate",
         cmd,
         trigger_mode=TRIGGER_MODE_MANUAL,
-        labels=['minikube','testkube'],
+        labels=['admin'],
     )
 
 # WorkflowTemplate YAML

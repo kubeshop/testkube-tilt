@@ -5,7 +5,7 @@ metadata:
   namespace: testkube
 spec:
   steps:
-  - shell: echo $PATH
+  - shell: 'echo Hostname: {{ env.HOST_NAME }}'
 status:
   health:
     passRate: 1
