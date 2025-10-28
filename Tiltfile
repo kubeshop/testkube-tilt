@@ -1,12 +1,12 @@
 # =========================
 # Config
 # =========================
-NS = 'testkube'                        # namespace where Testkube Runner Agent runs
+AGENT_NAMESPACE = 'testkube'                        # namespace where Testkube Runner Agent runs
 KUBE_CONTEXT_REQUIRED = 'minikube'     # your local minikubek8s context
 AUTO_RUN = False                        # False -> manual run buttons only
 WORKFLOW_DIR = 'workflows'             # where workflow yamls live
 SERVICE_ROOT = 'services'              # code folders that should trigger runs
-RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent to use
+RUNNER_AGENT_NAME = 'minikube-runner-1'              # name of the local runner agent to use, will be discovered automatically if not set
 RUN_SILENTLY = True                    # if True, the workflow will run silently (no webhooks will be sent)
 EXECUTION_TAGS = 'local-dev=true'   # tags to apply to the workflow execution
 
@@ -18,6 +18,30 @@ HOST_NETWORK_ADDRESS = str(local(
 print("Host network address: %s" % HOST_NETWORK_ADDRESS)
 
 allow_k8s_contexts(KUBE_CONTEXT_REQUIRED)
+
+# =========================
+# Prerequisites check
+# =========================
+def check_prerequisites():
+    """Check that Testkube helm charts are installed in the expected namespace"""
+    helm_check_cmd = "helm list --namespace %s -o json | jq '.[] | select(.chart | startswith(\"testkube\"))'" % AGENT_NAMESPACE
+    result = local(helm_check_cmd, quiet=True)
+    result_str = str(result).strip()
+    
+    if not result_str:
+        fail("""
+Prerequisite check failed!
+
+Expected to find Testkube helm charts in namespace '%s' but none were found.
+
+To fix this:
+1. Ensure Testkube is installed in namespace '%s'
+2. Run: helm list --namespace %s
+""" % (AGENT_NAMESPACE, AGENT_NAMESPACE, AGENT_NAMESPACE))
+    else:
+        print("✓ Prerequisite check passed: Testkube Runner Agent found in namespace '%s'" % AGENT_NAMESPACE)
+
+check_prerequisites()
 
 # =========================
 # Helpers
@@ -83,7 +107,7 @@ else:
         bash -lc 'set -euo pipefail;
 echo "Running workflow %s on local runner: %s"
 testkube run testworkflow "%s" -n %s --target name=%s -f %s --tag %s
-'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, NS, RUNNER_AGENT_NAME, (RUN_SILENTLY and '--disable-webhooks' or ''), EXECUTION_TAGS)
+'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, AGENT_NAMESPACE, RUNNER_AGENT_NAME, (RUN_SILENTLY and '--disable-webhooks' or ''), EXECUTION_TAGS)
 
         run_name = res_id('Run Workflow %s' % workflow_name, service, wf)
         local_resource(
@@ -100,14 +124,21 @@ testkube run testworkflow "%s" -n %s --target name=%s -f %s --tag %s
 # =========================
 local_resource(
     'Minikube Status',
-    'bash -lc "kubectl get nodes -o wide && kubectl -n %s get pods -o wide"' % NS,
+    'bash -lc "kubectl get nodes -o wide && kubectl -n %s get pods -o wide"' % AGENT_NAMESPACE,
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['minikube'],
 )
 
 local_resource(
+    'Testkube Status',
+    'bash -lc "testkube status"',
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['testkube'],
+)
+
+local_resource(
     'Testkube Dashboard',
-    'bash -lc "testkube dashboard -n %s"' % NS,
+    'bash -lc "testkube dashboard -n %s"' % AGENT_NAMESPACE,
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['testkube'],
     links=[link(
@@ -122,8 +153,6 @@ local_resource(
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['minikube'],
 )
-
-
 
 # =========================
 # Create TestWorkflowTemplate for local dev override
