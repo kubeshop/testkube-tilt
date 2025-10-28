@@ -3,6 +3,10 @@ kind: TestWorkflow
 metadata:
   name: api-vite-test2
 spec:
+  use:
+  - name: minikube-local-dev-override
+    config:
+      workingDir: /services/api/tests
   content:
     git:
       uri: https://github.com/fivenp/testkube-oneline

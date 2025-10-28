@@ -1,11 +1,23 @@
 # =========================
 # Config
 # =========================
-NS = 'testkube'                     # namespace where Testkube agent runs
-KUBE_CONTEXT_REQUIRED = 'minikube'  # your local k8s context
-AUTO_RUN = True                     # False -> manual run buttons only
-WORKFLOW_DIR = 'workflows'          # where workflow yamls live
-SERVICE_ROOT = 'services'           # code folders that should trigger runs
+NS = 'testkube'                        # namespace where Testkube Runner Agent runs
+KUBE_CONTEXT_REQUIRED = 'minikube'     # your local minikubek8s context
+AUTO_RUN = False                        # False -> manual run buttons only
+WORKFLOW_DIR = 'workflows'             # where workflow yamls live
+SERVICE_ROOT = 'services'              # code folders that should trigger runs
+RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent to use
+RUN_SILENTLY = True                    # if True, the workflow will run silently (no webhooks will be sent)
+EXECUTION_TAGS = 'local-dev=true'   # tags to apply to the workflow execution
+
+HOST_NETWORK_ADDRESS = str(local(
+    'bash -lc "minikube ssh -- grep host.docker.internal /etc/hosts 2>/dev/null | awk \'{print $1}\' || echo host.minikube.internal"',
+    quiet=True
+)).strip() or 'host.minikube.internal'
+
+print("Host network address: %s" % HOST_NETWORK_ADDRESS)
+
+allow_k8s_contexts(KUBE_CONTEXT_REQUIRED)
 
 # =========================
 # Helpers
@@ -36,8 +48,11 @@ def sanitize_id(s):
     return s.replace('/', '__').replace('.', '_')
 
 def res_id(prefix, service, wf_path):
-    return '%s:%s:%s' % (prefix, service, sanitize_id(wf_path))
+    return '%s (%s:%s)' % (prefix, service, sanitize_id(wf_path))
 
+def extract_resource_name(yaml_path):
+    result = read_yaml( yaml_path ).get('metadata', {}).get('name', None)
+    return result
 
 # =========================
 # Wire workflows
@@ -51,54 +66,126 @@ else:
 
         # Watch the workflow file + the whole service directory
         service_dir = '%s/%s' % (SERVICE_ROOT, service)
-        deps = [wf, service_dir]
+        workflow_name = extract_resource_name(wf)
 
         # 1) Apply whenever deps change
-        apply_name = res_id('apply', service, wf)
+        apply_name = res_id('Update Workflow %s' % workflow_name, service, wf)
         local_resource(
             apply_name,
-            'bash -lc "set -euo pipefail; kubectl apply -n testkube -f %s"' % wf,
-            deps=deps,
-            resource_deps=['preflight'],
+            'bash -lc "set -euo pipefail; testkube create testworkflow --update -f %s"' % wf,
+            deps=[wf, service_dir],
+            allow_parallel=True,
+            labels=['update'],
         )
 
         # 2) Run: resolve the workflow name at runtime from the cluster (works for single or list)
         run_cmd = """
-bash -lc 'set -euo pipefail;
-name=$(kubectl get -f %s -n %s -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || true)
-if [ -z "$name" ]; then
-  name=$(kubectl get -f %s -n %s -o jsonpath="{.metadata.name}" 2>/dev/null || true)
-fi
-if [ -z "$name" ]; then
-  echo "Could not determine TestWorkflow name from %s" >&2
-  exit 1
-fi
-echo "Running workflow: $name"
-testkube run testworkflow "$name" -n %s -f
-'""" % (wf, NS, wf, NS, wf, NS)
+        bash -lc 'set -euo pipefail;
+echo "Running workflow %s on local runner: %s"
+testkube run testworkflow "%s" -n %s --target name=%s -f %s --tag %s
+'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, NS, RUNNER_AGENT_NAME, (RUN_SILENTLY and '--disable-webhooks' or ''), EXECUTION_TAGS)
 
-        run_name = res_id('run', service, wf)
+        run_name = res_id('Run Workflow %s' % workflow_name, service, wf)
         local_resource(
             run_name,
             run_cmd,
             trigger_mode=TRIGGER_MODE_AUTO if AUTO_RUN else TRIGGER_MODE_MANUAL,
             resource_deps=[apply_name],
             allow_parallel=True,
+            labels=['execute'],
         )
 
 # =========================
 # Global buttons
 # =========================
 local_resource(
-    'status',
+    'Minikube Status',
     'bash -lc "kubectl get nodes -o wide && kubectl -n %s get pods -o wide"' % NS,
     trigger_mode=TRIGGER_MODE_MANUAL,
-    resource_deps=['preflight'],
+    labels=['minikube'],
 )
 
 local_resource(
-    'dashboard',
+    'Testkube Dashboard',
     'bash -lc "testkube dashboard -n %s"' % NS,
     trigger_mode=TRIGGER_MODE_MANUAL,
-    resource_deps=['preflight'],
+    labels=['testkube'],
+    links=[link(
+    'https://docs.testkube.io',
+    'Testkube Docs',
+)]
 )
+
+local_resource(
+    'Mount tests into Minikube',
+    serve_cmd='bash -lc "minikube mount ./:/minikube-host/testkube-local-dev"',
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['minikube'],
+)
+
+
+
+# =========================
+# Create TestWorkflowTemplate for local dev override
+# =========================
+
+# Example helper function
+def create_local_dev_override_workflow_template(resource_yaml):
+
+    # Use mktemp to create a temporary file with cleanup
+    cmd = """
+    bash -lc 'set -euo pipefail;
+TMPFILE=$(mktemp /tmp/tilt-XXXXXX.yaml)
+cat > "$TMPFILE" << 'EOF'
+%s
+EOF
+echo "Applying inline resource..."
+testkube create testworkflowtemplate -f "$TMPFILE" --update
+rm -f "$TMPFILE"
+'""" % (resource_yaml)
+    
+    return local_resource(
+        "Create Local Dev Override WorkflowTemplate",
+        cmd,
+        trigger_mode=TRIGGER_MODE_MANUAL,
+        labels=['minikube','testkube'],
+    )
+
+# WorkflowTemplate YAML
+template_yaml = """
+kind: TestWorkflowTemplate
+apiVersion: testworkflows.testkube.io/v1
+metadata:
+  name: minikube-local-dev-override
+  namespace: testkube
+spec:
+  config:
+    workingDir:
+      type: string
+  pod:
+    volumes:
+    - name: hostshare
+      hostPath:
+        path: /minikube-host/testkube-local-dev
+        type: DirectoryOrCreate
+  setup:
+  - name: Overwrite from local
+    optional: true
+    container:
+      image: busybox
+      volumeMounts:
+      - name: hostshare
+        mountPath: /data/local
+    shell: |
+      # check if mounted volume folder exists
+      [ -d "/data/local{{ config.workingDir }}" ] || { echo "Folder /data/local{{ config.workingDir }} for local override not found!"; exit 1; }
+
+      # delete existing tests (to correctly mirror deleted tests) and copy local tests into repo
+      rm -rf /data/repo{{ config.workingDir }}
+      cp -rfv /data/local{{ config.workingDir }} /data/repo{{ config.workingDir }}
+
+"""
+
+# Create the WorkflowTemplate for local dev override
+create_local_dev_override_workflow_template(template_yaml)
+
