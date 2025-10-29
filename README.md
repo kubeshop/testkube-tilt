@@ -66,6 +66,19 @@ The Tiltfile automatically:
    - target the `RUNNER_AGENT_NAME` runner agent.
    - add the defined `EXECUTION_TAGS` for easy filtering in the Testkube Dashboard 
    - run silently if `RUN_SILENTLY` is `TRUE`; these executions will not trigger webhooks/events or skew Health and Insights metrics.
+   - automatically passes a `HOST_NETWORK_ADDRESS` variable which Workflows can use to target services/apps running on host outside of Minikube.
+
+   - You can see this in the log output in the Tilt Console for the "Run Workflow.. " resources:
+
+      ```
+      Running cmd: sh -c "bash -lc 'set -euo pipefail;\necho \"Running workflow api-vite-test2 on local runner: minikube-runner-1\"\ntestkube run testworkflow \"api-vite-test2\" --target name=minikube-runner-1 -f --tag local-dev=true --variable HOST_NAME=host.minikube.internal --disable-webhooks\n'"
+      Running workflow api-vite-test2 on local runner: minikube-runner-1
+      ```
+   
+    - More specifically:
+      - `--target name=minikube-runner-1` passes the `RUNNER_AGENT_NAME` Runner name
+      - `--tag local-dev=true` passes the `EXECUTION_TAGS`
+      - `--variable HOST_NAME=host.minikube.internal` passes the `HOST_NETWORK_ADDRESS`
 
 5. **Provides local dev overrides** - Creates a TestWorkflowTemplate (`minikube-local-dev-override`) that mounts the root folder into Minikube 
    so it can be used to override repository content when running tests, see the [Configuration Example](#workflow-configuration-example) below.
