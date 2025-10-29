@@ -3,6 +3,10 @@ kind: TestWorkflow
 metadata:
   name: api-vite-test2
 spec:
+  use:
+  - name: minikube-local-dev-override
+    config:
+      workingDir: /services/api/tests
   content:
     git:
       uri: https://github.com/fivenp/testkube-oneline
@@ -12,7 +16,7 @@ spec:
   container:
     image: node:20-alpine
   steps:
-    - name: install
+    - name: install 
       run:
         shell: cd /data/repo/services/api && npm install
     - name: test
