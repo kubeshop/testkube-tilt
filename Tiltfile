@@ -6,12 +6,12 @@ load('ext://uibutton', 'cmd_button', 'location', 'text_input')
 AGENT_NAMESPACE = 'minikube-runner-1'   # namespace where local Testkube Runner Agent runs
 RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent - usually the same as the namespace
 KUBE_CONTEXT = 'minikube'               # your local minikube k8s context
-WORKFLOW_DIR = 'workflows'              # where workflow yamls live
-SERVICE_ROOT = 'services'               # code folders that should trigger runs
+WORKFLOW_DIR = 'workflows'              # where workflow yamls live -> Tilt will automatically add/update these Workflows to your Environment
+SERVICE_ROOT = 'services'               # code folders that should trigger runs -> Tilt will watch this directory for changes to run tests if `AUTO_RUN` is set
 AUTO_RUN = False                        # True -> automatically rerun Workflows when tests are updated
-AUTO_DELETE = False                     # True -> automatically delete Workflows from Environment when they are deleted in the filesystem
+AUTO_DELETE = False                     # True -> automatically delete Workflows from Environment when they are deleted in the WORKFLOW_DIR
 RUN_SILENTLY = True                     # True -> run Testkube executions silently
-EXECUTION_TAGS = 'local-dev=true'       # tags to add to executions triggered locally
+EXECUTION_TAGS = 'local-dev=true'       # tags to add to Workflow executions triggered by Tilt
 
 # extract host network address from minikube ssh so we can use it to target the host network when running workflows
 HOST_NETWORK_ADDRESS = str(local(
