@@ -4,8 +4,7 @@ This project shows how to set up a local development environment for running [Te
 
 You can use the included Tiltfile as is in your own project by adjusting configuration parameters to match your repository setup, or use this as a blueprint for new projects with corresponding requirements. Don't hesitate to open issues on this repo for improvements/bugs/etc.
 
-The project depends on a [Testkube Runner Agent](https://docs.testkube.io/articles/agents-overview#runner-agents) running in a local Minikube Cluster, 
-to which Tilt will automatically sync both Workflows and tests as they are updated locally. Furthermore, the projectcan be configured to automatically (re)run tests as they (or the target services) are updated (see below).
+The project depends on a [Testkube Runner Agent](https://docs.testkube.io/articles/agents-overview#runner-agents) running in a local Minikube Cluster, to which Tilt will automatically sync both Workflows and tests as they are updated locally. Furthermore, the projectcan be configured to automatically (re)run tests as they (or the target services) are updated (see below).
 
 Head over to the Testkube documentation to read more about the foundation for the approach used in this project.
 

@@ -1,3 +1,5 @@
+load('ext://uibutton', 'cmd_button', 'location', 'text_input')
+
 # =========================
 # Config
 # =========================
@@ -6,7 +8,7 @@ RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent - usual
 KUBE_CONTEXT = 'minikube'               # your local minikube k8s context
 WORKFLOW_DIR = 'workflows'              # where workflow yamls live
 SERVICE_ROOT = 'services'               # code folders that should trigger runs
-AUTO_RUN = True                         # True -> automatically rerun Workflows when tests are updated
+AUTO_RUN = False                        # True -> automatically rerun Workflows when tests are updated
 AUTO_DELETE = False                     # True -> automatically delete Workflows from Environment when they are deleted in the filesystem
 RUN_SILENTLY = True                     # True -> run Testkube executions silently
 EXECUTION_TAGS = 'local-dev=true'       # tags to add to executions triggered locally
@@ -160,7 +162,7 @@ fi
             apply_cmd,
             deps=[wf],
             allow_parallel=True,
-            labels=['update', 'workflow'],
+            labels=['update'],
         )
 
         # 2) Run: resolve the workflow name at runtime from the cluster (works for single or list)
@@ -179,17 +181,17 @@ testkube run testworkflow "%s" --target name=%s -f --tag %s --variable HOST_NAME
             deps=[service_dir],
             allow_parallel=True,
             labels=['execute'],
+            auto_init=False
         )
 
 # =========================
-# Add Admin buttons
+# Add Admin Resource
 # =========================
 local_resource(
     'Testkube Runner Agent Status',
     'bash -lc "kubectl get nodes -o wide && kubectl -n %s get pods -o wide"' % AGENT_NAMESPACE,
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['admin'],
-    auto_init=False
 )
 
 local_resource(
@@ -197,19 +199,6 @@ local_resource(
     'bash -lc "testkube status && testkube get context"',
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['admin'],
-    auto_init=False
-)
-
-local_resource(
-    'Testkube Dashboard',
-    'bash -lc "testkube dashboard -n %s"' % AGENT_NAMESPACE,
-    trigger_mode=TRIGGER_MODE_MANUAL,
-    labels=['admin'],
-    auto_init=False,
-    links=[link(
-    'https://docs.testkube.io',
-    'Testkube Docs',
-)]
 )
 
 local_resource(
@@ -218,6 +207,27 @@ local_resource(
     trigger_mode=TRIGGER_MODE_MANUAL,
     labels=['admin'],
 )
+
+# ==================================================
+# Add Admin Buttons to Navigation Bar
+# ==================================================
+
+cmd_button(
+    name='nav-testkube-dashboard',
+    location=location.NAV,
+    text='Testkube Dashboard',
+    argv=['testkube', 'dashboard'],
+    icon_name='home',
+)
+
+cmd_button(
+    name='nav-testkube-docs',
+    location=location.NAV,
+    text='Testkube Docs',
+    argv=['open', 'https://docs.testkube.io'],
+    icon_name='help',
+)
+
 
 # ===========================================================================
 # Create TestWorkflowTemplate for local dev override
@@ -243,6 +253,7 @@ rm -f "$TMPFILE"
         cmd,
         trigger_mode=TRIGGER_MODE_MANUAL,
         labels=['admin'],
+        auto_init=False
     )
 
 # WorkflowTemplate YAML
