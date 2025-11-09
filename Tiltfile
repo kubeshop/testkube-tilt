@@ -8,14 +8,14 @@ RUNNER_AGENT_NAME = 'minikube-runner-1' # name of the local runner agent - usual
 KUBE_CONTEXT = 'minikube'               # your local minikube k8s context
 WORKFLOW_DIR = 'workflows'              # where workflow yamls live -> Tilt will automatically add/update these Workflows to your Environment
 SERVICE_ROOT = 'services'               # code folders that should trigger runs -> Tilt will watch this directory for changes to run tests if `AUTO_RUN` is set
-AUTO_RUN = False                        # True -> automatically rerun Workflows when tests are updated
+AUTO_RUN = True                         # True -> automatically rerun Workflows when tests are updated
 AUTO_DELETE = False                     # True -> automatically delete Workflows from Environment when they are deleted in the WORKFLOW_DIR
 RUN_SILENTLY = True                     # True -> run Testkube executions silently
 EXECUTION_TAGS = 'local-dev=true'       # tags to add to Workflow executions triggered by Tilt
 
 # extract host network address from minikube ssh so we can use it to target the host network when running workflows
 HOST_NETWORK_ADDRESS = str(local(
-    'bash -lc "minikube ssh -- grep host.docker.internal /etc/hosts 2>/dev/null | awk \'{print $1}\' || echo host.minikube.internal"',
+    'minikube ssh -- grep host.docker.internal /etc/hosts 2>/dev/null | awk \'{print $1}\' || echo host.minikube.internal',
     quiet=True
 )).strip() or 'host.minikube.internal'
 
@@ -23,6 +23,7 @@ print("✓ Host network address: %s" % HOST_NETWORK_ADDRESS)
 
 # make sure we're using the correct k8s context
 allow_k8s_contexts(KUBE_CONTEXT)
+local( "kubectl config use-context %s" % KUBE_CONTEXT )
 
 # ===========================================================================
 # CLI Prerequisites check for Testkube CLI
@@ -81,7 +82,12 @@ Expected to find Testkube helm charts in namespace '%s' but none were found.
 To fix this:
 1. Ensure Testkube is installed in namespace '%s'
 2. Run: helm list --namespace %s
-""" % (AGENT_NAMESPACE, AGENT_NAMESPACE, AGENT_NAMESPACE))
+
+If you don't have a Testkube Runner Agent deployed in the %s namespace, you can deploy one by running:
+
+testkube install agent %s --runner --create
+
+""" % (AGENT_NAMESPACE, AGENT_NAMESPACE, AGENT_NAMESPACE, AGENT_NAMESPACE, AGENT_NAMESPACE))
 else:
     print("✓ Prerequisite check passed: Testkube Runner Agent found in namespace '%s'" % AGENT_NAMESPACE)
 
@@ -100,14 +106,13 @@ def service_from_workflow(path):
     return 'unknown'
 
 def list_workflow_files():
-    # shell globs to enumerate workflow files (single + nested)
+    # Use find to discover workflow files at depth 1 and 2
     out = str(local(
-        'bash -lc "ls -1 %s/*.yaml 2>/dev/null; ls -1 %s/*/*.yaml 2>/dev/null || true"' % (WORKFLOW_DIR, WORKFLOW_DIR),
+        'find %s -maxdepth 2 -name "*.yaml" -type f 2>/dev/null | sort' % WORKFLOW_DIR,
         quiet=True
     ))
-    files = [l for l in out.splitlines() if l.strip() != '']
-    return sorted(files)
-
+    return [l.strip() for l in out.splitlines() if l.strip()]
+    
 def sanitize_id(s):
     # Tilt resource names may not contain '/'
     # also avoid dots for neatness
@@ -138,7 +143,7 @@ else:
         apply_name = res_id('Update Workflow %s' % workflow_name, service, wf)
 
         apply_cmd = ("""
-bash -lc 'set -euo pipefail;
+bash -c 'set -euo pipefail;
 if [ ! -f "%s" ]; then
     echo "Workflow file deleted: %s - deleting workflow %s"
     testkube delete testworkflow "%s" || echo "Workflow %s may not exist (already deleted or never created)"
@@ -148,7 +153,7 @@ else
 fi
 '""" % (wf, wf, workflow_name, workflow_name, workflow_name, workflow_name, wf, wf)
         if AUTO_DELETE else """
-bash -lc 'set -euo pipefail;
+bash -c 'set -euo pipefail;
 if [ ! -f "%s" ]; then
     echo "Workflow file deleted: %s - ignoring.."
 else
@@ -167,10 +172,10 @@ fi
 
         # 2) Run: resolve the workflow name at runtime from the cluster (works for single or list)
         run_cmd = """
-        bash -lc 'set -euo pipefail;
+        bash -c 'set -euo pipefail;
 echo "Running workflow %s on local runner: %s"
 testkube run testworkflow "%s" --target name=%s -f --tag %s --variable HOST_NAME=%s %s
-'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, RUNNER_AGENT_NAME, EXECUTION_TAGS, HOST_NETWORK_ADDRESS, (RUN_SILENTLY and '--disable-webhooks' or ''))
+'""" % (workflow_name, RUNNER_AGENT_NAME, workflow_name, RUNNER_AGENT_NAME, EXECUTION_TAGS, HOST_NETWORK_ADDRESS, (RUN_SILENTLY and '--silent' or ''))
 
         run_name = res_id('Run Workflow %s' % workflow_name, service, wf)
         local_resource(
@@ -238,7 +243,7 @@ def create_local_dev_override_workflow_template(resource_yaml):
 
     # Use mktemp to create a temporary file with cleanup
     cmd = """
-    bash -lc 'set -euo pipefail;
+    bash -c 'set -euo pipefail;
 TMPFILE=$(mktemp /tmp/tilt-XXXXXX.yaml)
 cat > "$TMPFILE" << 'EOF'
 %s

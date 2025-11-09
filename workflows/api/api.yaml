@@ -16,7 +16,7 @@ spec:
   container:
     image: node:20-alpine
   steps:
-    - name: install 
+    - name: install deps
       run:
         shell: cd /data/repo/services/api && npm install
     - name: test

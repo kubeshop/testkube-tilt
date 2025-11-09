@@ -2,6 +2,8 @@
 
 This project shows how to set up a local development environment for running [Testkube](https://testkube.io) workflows using [Tilt](https://tilt.dev), enabling fast iteration on both tests and services without having to commit changes to git or Testkube to run updated tests. 
 
+> Head over to the Testkube documentation to learn more about [Local Test Development and Execution](https://docs.testkube.io/articles/local-dev-loop).
+
 You can use the included Tiltfile as is in your own project by adjusting configuration parameters to match your repository setup, or use this as a blueprint for new projects with corresponding requirements. Don't hesitate to open issues on this repo for improvements/bugs/etc.
 
 The project depends on a [Testkube Runner Agent](https://docs.testkube.io/articles/agents-overview#runner-agents) running in a local Minikube Cluster, to which Tilt will automatically sync both Workflows and tests as they are updated locally. Furthermore, the projectcan be configured to automatically (re)run tests as they (or the target services) are updated (see below).
@@ -47,11 +49,11 @@ EXECUTION_TAGS = 'local-dev=true'       # tags to add to executions triggered lo
 
 The Tiltfile automatically:
 
-1. **Checks prerequisites**:
-   - That the specified KUBE_CONTEXT is set
-   - That the Testkube CLI is installed
-   - That the Testkube Context is configured for an Environment
-   - That the Testkube Runner Agent is installed in the specified namespace
+1. **Prerequisites**:
+   - Sets to the specified KUBE_CONTEXT as the current context for kubectl
+   - Checks that the Testkube CLI is installed
+   - Checks that the Testkube Context is configured for an Environment
+   - Checks that the Testkube Runner Agent is installed in the specified namespace
 
 2. **Watches for changes** in:
    * `WORKFLOW_DIR/*.yaml` - TestWorkflow definitions
@@ -64,13 +66,13 @@ The Tiltfile automatically:
 4. **Targets local agent** - All workflow executions triggered by Tilt automatically 
    - target the `RUNNER_AGENT_NAME` runner agent.
    - add the defined `EXECUTION_TAGS` for easy filtering in the Testkube Dashboard 
-   - run silently if `RUN_SILENTLY` is `TRUE`; these executions will not trigger webhooks/events or skew Health and Insights metrics.
+   - run silently if `RUN_SILENTLY` is `TRUE`; these executions will not trigger webhooks/events or skew Health and Insights metrics, [Read More](https://docs.testkube.io/articles/test-workflows-running#silent-executions)
    - automatically passes a `HOST_NETWORK_ADDRESS` variable which Workflows can use to target services/apps running on host outside of Minikube.
 
    - You can see this in the log output in the Tilt Console for the "Run Workflow.. " resources:
 
       ```
-      Running cmd: sh -c "bash -lc 'set -euo pipefail;\necho \"Running workflow api-vite-test2 on local runner: minikube-runner-1\"\ntestkube run testworkflow \"api-vite-test2\" --target name=minikube-runner-1 -f --tag local-dev=true --variable HOST_NAME=host.minikube.internal --disable-webhooks\n'"
+      Running cmd: sh -c "bash -lc 'set -euo pipefail;\necho \"Running workflow api-vite-test2 on local runner: minikube-runner-1\"\ntestkube run testworkflow \"api-vite-test2\" --target name=minikube-runner-1 -f --tag local-dev=true --variable HOST_NAME=host.minikube.internal --silent\n'"
       Running workflow api-vite-test2 on local runner: minikube-runner-1
       ```
    
